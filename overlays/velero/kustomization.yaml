@@ -1,0 +1,6 @@
+namespace: velero
+
+resources:
+  - ../../base/base  # Reuse the common base
+  - rbac.yaml
+  - release.yaml

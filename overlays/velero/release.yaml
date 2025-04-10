@@ -1,0 +1,90 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: velero
+  namespace: velero
+spec:
+  interval: 1h0m0s
+  install:
+    createNamespace: true
+  chart:
+    spec:
+      chart: velero
+      version: 8.7.1
+      sourceRef:
+        kind: HelmRepository
+        name: velero-tanzu
+  values:
+    image:
+      repository: velero-tanzu/velero
+      tag: v1.15.2
+      pullPolicy: IfNotPresent
+      imagePullSecrets: []
+    
+    initContainers:
+      - name: velero-plugin-for-aws
+        image: velero/velero-plugin-for-aws:v1.8.1
+        imagePullPolicy: IfNotPresent
+        volumeMounts:
+          - mountPath: /target
+            name: plugins
+    
+    configuration:
+      backupStorageLocation:
+        - name: dev-backend-bsl
+          provider: aws
+          bucket: dev-backend-pvc-backups
+          credential:
+            name: dev-backend-bsl-secret
+            key: cloud
+          config:
+            region: us-east-1
+            s3ForcePathStyle: "true"
+            s3Url: http://minio.minio.svc.cluster.local:9000
+        - name: dev-mongodb-bsl
+          provider: aws
+          credential:
+            name: dev-mongodb-bsl-secret
+            key: cloud
+          bucket: dev-mongodb-pvc-backups
+          config:
+            region: us-east-1
+            s3ForcePathStyle: "true"
+            s3Url: http://minio.minio.svc.cluster.local:9000
+      
+      volumeSnapshotLocation: []
+      snapshotsEnabled: false
+      
+      deployNodeAgent: true
+      defaultVolumesToFsBackup: true
+      deployRestic: true
+      
+      features: ""
+      logLevel: info
+      logFormat: text
+    
+    rbac:
+      create: false  # Set to false since you'll manage RBAC separately via Flux
+      clusterAdministrator: false
+    
+    serviceAccount:
+      server:
+        create: true
+        name: velero
+        annotations: {}
+    
+    resources: {}
+    
+    nodeAgent:
+      resources: {}
+      podSecurityContext:
+        runAsUser: 0
+
+---
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: HelmRepository
+metadata:
+  name: velero-tanzu
+spec:
+  interval: 1h0m0s
+  url: https://vmware-tanzu.github.io/helm-charts
