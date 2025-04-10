@@ -1,0 +1,87 @@
+repositories:
+ - name: velero-tanzu
+   url: https://vmware-tanzu.github.io/helm-charts
+
+releases:
+- name: velero
+  namespace: velero
+  createNamespace: false
+  version: 8.7.1
+  chart: velero-tanzu/velero
+  disableValidation: true
+  values:
+    - image:
+        repository: velero/velero
+        tag: v1.15.2
+        pullPolicy: IfNotPresent
+        imagePullSecrets: []
+      
+      # Init Containers for AWS plugin
+    - initContainers:
+        - name: velero-plugin-for-aws
+          image: velero/velero-plugin-for-aws:v1.8.1
+          imagePullPolicy: IfNotPresent
+          volumeMounts:
+            - mountPath: /target
+              name: plugins
+      
+      # Configuration for Backup Storage Location
+    - configuration:
+        backupStorageLocation:
+          - name: dev-backend-bsl
+            provider: aws
+            bucket: dev-backend-pvc-backups
+            credential:
+              name: dev-backend-bsl-secret
+              key: cloud
+            config:
+              region: us-east-1
+              s3ForcePathStyle: "true"
+              s3Url: http://minio.minio.svc.cluster.local:9000
+      
+          - name: dev-mongodb-bsl
+            provider: aws
+            credential:
+              name: dev-mongodb-bsl-secret
+              key: cloud
+            bucket: dev-mongodb-pvc-backups
+            config:
+              region: us-east-1
+              s3ForcePathStyle: "true"
+              s3Url: http://minio.minio.svc.cluster.local:9000
+      
+        # Disable volume snapshots as per your CLI
+        volumeSnapshotLocation: []
+        snapshotsEnabled: false
+      
+        # Enable restic as per your CLI
+        deployNodeAgent: true
+        defaultVolumesToFsBackup: true
+        # deploy resitc on the cluster for file system backups
+        deployRestic: true
+
+      
+        # Other server settings
+        features: ""
+        logLevel: info
+        logFormat: text
+      
+      
+      # RBAC Configuration
+    - rbac:
+        create: true
+        clusterAdministrator: false
+      
+      # Service Account Configuration
+    - serviceAccount:
+        server:
+          create: true
+          name: velero
+          annotations: {}
+      
+      # Resource Configuration
+    - resources: {}
+    - nodeAgent:
+        resources: {}
+        podSecurityContext:
+          runAsUser: 0
